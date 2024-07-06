@@ -1,0 +1,58 @@
+version: v2beta1
+name: backend
+pipelines:
+  dev:
+    run: |-
+      run_dependencies --all
+      build_images --all -t $(cat /proc/sys/kernel/random/uuid)
+      create_deployments --all
+      start_dev backend
+images:
+  backend:
+    image: truevoid/backend
+    dockerfile: Dockerfile
+    context: ./
+deployments:
+  minio:
+    helm:
+      chart:
+        name: minio
+        repo: https://charts.bitnami.com/bitnami
+      values:
+        auth:
+          rootPassword: miniopass
+        defaultBuckets: storage
+        persistence:
+          enabled: false
+        pdb:
+          create: false
+  backend:
+    helm:
+      values:
+        containers:
+          - image: truevoid/backend
+            name: backend
+            env:
+              - name: FSSPEC_S3_ENDPOINT_URL
+                value: http://minio:9000
+              - name: FSSPEC_S3_KEY
+                value: admin
+              - name: FSSPEC_S3_SECRET
+                value: miniopass
+        service:
+          name: backend
+          ports:
+            - containerPort: 8000
+              port: 80
+dev:
+  backend:
+    container: backend
+    imageSelector: truevoid/backend
+    sync:
+      - path: ./
+        excludeFile: devspace.dockerignore
+    ports:
+      - port: "8000"
+    terminal:
+      command: python3 chunked_upload/main.py
+      disableScreen: true

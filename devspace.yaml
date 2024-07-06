@@ -1,0 +1,39 @@
+version: v2beta1
+name: chunked-upload
+pipelines:
+  dev:
+    run: |-
+      run_dependencies --all
+      build_images --all -t $(cat /proc/sys/kernel/random/uuid)
+      create_deployments --all
+      start_dev proxy
+images:
+  proxy:
+    image: truevoid/proxy
+    dockerfile: proxy/Dockerfile
+    context: proxy
+deployments:
+  proxy:
+    helm:
+      values:
+        containers:
+          - image: truevoid/proxy
+            name: proxy
+            env:
+              - name: API_MAIN_SERVICE_URL
+                value: http://frontend
+              - name: API_UPLOAD_SERVICE_URL
+                value: http://backend
+              - name: NGINX_ENVSUBST_FILTER
+                value: API_
+dependencies:
+  backend:
+    path: python
+  frontend:
+    path: nextjs
+dev:
+  proxy:
+    container: proxy
+    imageSelector: truevoid/proxy
+    ports:
+      - port: "3000"

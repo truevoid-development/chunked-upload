@@ -1,0 +1,38 @@
+version: v2beta1
+name: frontend
+pipelines:
+  dev:
+    run: |-
+      run_dependencies --all
+      build_images --all -t $(cat /proc/sys/kernel/random/uuid)
+      create_deployments --all
+      start_dev frontend
+images:
+  frontend:
+    image: truevoid/frontend
+    dockerfile: Dockerfile
+    context: ./
+deployments:
+  frontend:
+    helm:
+      values:
+        containers:
+          - image: truevoid/frontend
+            name: frontend
+        service:
+          name: frontend
+          ports:
+            - containerPort: 3000
+              port: 80
+dev:
+  frontend:
+    container: frontend
+    imageSelector: truevoid/frontend
+    sync:
+      - path: ./
+        excludeFile: devspace.dockerignore
+    ports:
+      - port: "3000"
+    terminal:
+      command: npm run dev -- -H 0.0.0.0
+      disableScreen: true
