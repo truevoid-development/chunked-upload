@@ -1,13 +1,41 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import axios from "axios";
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { faCancel, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import prettyBytes from "pretty-bytes";
 
-const UploadPage: React.FC = () => {
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+const queryClient = new QueryClient();
+
+const CHUNK_SIZE = 2 * 1024 * 1024; // 5MB chunks
+
+interface Object {
+  path: string;
+  completed: boolean;
+  nBytes: number;
+  uploadedChunks: number;
+  totalChunks: number;
+}
+
+interface ObjectList {
+  items: Array<Object>;
+}
+
+function Objects(): React.ReactNode {
+  const { data, refetch } = useQuery<ObjectList>({
+    queryKey: ["objects"],
+    queryFn: () => fetch("/api/objects").then((res) => res.json()),
+    staleTime: 1000,
+    refetchInterval: 5000,
+  });
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0]; // Assume single file upload for simplicity
@@ -26,7 +54,7 @@ const UploadPage: React.FC = () => {
       formData.append("totalChunks", totalChunks.toString());
 
       try {
-        const response = await axios.post("/api/upload", formData, {
+        const response = await axios.post("/api/objects", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
             "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
@@ -34,12 +62,10 @@ const UploadPage: React.FC = () => {
         });
 
         if (response.status === 200) {
-          setUploadProgress(100);
           console.log("Upload completed");
           break;
         } else {
-          const progress = ((chunkIndex + 1) / totalChunks) * 100;
-          setUploadProgress(Math.round(progress));
+          refetch();
         }
       } catch (error) {
         console.error("Error uploading chunk:", error);
@@ -48,11 +74,16 @@ const UploadPage: React.FC = () => {
     }
   }, []);
 
+  const actions = (completed: boolean): React.ReactNode => {
+    return <FontAwesomeIcon icon={completed ? faTrash : faCancel} />;
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Large File Uploader</h1>
+    <div className="container mx-auto p-4 space-y-2">
+      <h1 className="text-2xl font-bold mb-4">Chunked Upload</h1>
+
       <div
         {...getRootProps()}
         className={`border-2 border-dashed p-8 text-center cursor-pointer ${
@@ -64,20 +95,44 @@ const UploadPage: React.FC = () => {
           ? <p>Drop the files here ...</p>
           : <p>Drag 'n' drop some files here, or click to select files</p>}
       </div>
-      {uploadProgress > 0 && (
-        <div className="mt-4">
-          <p>Upload Progress: {uploadProgress}%</p>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${uploadProgress}%` }}
-            >
-            </div>
-          </div>
-        </div>
-      )}
+      <table className="table-auto w-full space-y-3 text-center py-8">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Size</th>
+            <th>Progress</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data === undefined ? <></> : data.items.map((item) => {
+            return (
+              <tr>
+                <td>{item.path}</td>
+                <td>{prettyBytes(item.nBytes)}</td>
+                <td>
+                  {item.completed
+                    ? "Completed"
+                    : `${
+                      Math.ceil(100 * item.uploadedChunks / item.totalChunks)
+                    }%`}
+                </td>
+                <td>{actions(item.completed)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
-};
+}
+
+function UploadPage(): React.ReactNode {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Objects />
+    </QueryClientProvider>
+  );
+}
 
 export default UploadPage;

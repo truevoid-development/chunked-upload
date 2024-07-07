@@ -23,7 +23,7 @@ deployments:
           rootPassword: miniopass
         defaultBuckets: storage
         persistence:
-          enabled: false
+          enabled: true
         pdb:
           create: false
   backend:
@@ -54,5 +54,5 @@ dev:
     ports:
       - port: "8000"
     terminal:
-      command: python3 chunked_upload/main.py
+      command: gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
       disableScreen: true

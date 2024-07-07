@@ -20,4 +20,4 @@ RUN poetry install --only main
 
 COPY chunked_upload chunked_upload/
 
-CMD ["python3", "chunked_upload/main.py"]
+CMD ["gunicorn", "chunked_upload.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
