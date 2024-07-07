@@ -140,8 +140,7 @@ async def upload_file(
 
     bytes_range, file_size = content_range.split(" ")[1].split("/")
     start, end = map(int, bytes_range.split("-"))
-    filename = f"{BUCKET_NAME}/{UPLOADS_PATH}/{file.filename}"
-    parts_path = f"{filename}.part"
+    parts_path = f"{BUCKET_NAME}/{UPLOADS_PATH}/{file.filename}"
 
     if not fs.exists(metadata_path := f"{parts_path}/metadata.json"):
         with fs.open(metadata_path, "w") as f:

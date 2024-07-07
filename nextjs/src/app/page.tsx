@@ -91,7 +91,7 @@ function Objects(): React.ReactNode {
               }}
             />
           )
-          : <FontAwesomeIcon icon={faCancel} className="cursor-pointer" />}
+          : <></>}
       </>
     );
   };
