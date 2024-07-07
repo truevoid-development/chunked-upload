@@ -63,6 +63,7 @@ function Objects(): React.ReactNode {
 
         if (response.status === 200) {
           console.log("Upload completed");
+          refetch();
           break;
         } else {
           refetch();

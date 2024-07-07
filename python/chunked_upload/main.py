@@ -2,7 +2,7 @@ import json
 from typing import Annotated, List, LiteralString
 
 import fsspec
-from fastapi import FastAPI, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from .models import Object, ObjectList
@@ -79,11 +79,38 @@ async def delete_object(filename: str) -> None:
     print(f"Deleted {filename}")
 
 
+def part_filename(parts_path: str, ichunk: int):
+    """Return the filename of a part."""
+
+    return f"{parts_path}/.part{ichunk:05x}"
+
+
+def complete_upload(filename: str, full_path: str, parts_path: str, total_chunks: int) -> None:
+    """Complete an upload."""
+
+    print(f"Finalizing upload of {filename}")
+
+    fs = fsspec.filesystem(protocol="s3")
+    fs.invalidate_cache()
+
+    with fs.open(full_path, "wb") as combined_file:
+        for ichunk in range(total_chunks):
+            with fs.open(part_filename(parts_path, ichunk), "rb") as part_file:
+                combined_file.write(part_file.read())
+
+    fs.rm(parts_path, recursive=True)
+
+    fs.mv(full_path, dest_path := f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}")
+
+    print(f"Completed upload to {dest_path}")
+
+
 @app.post("/objects")
 async def upload_file(
     file: UploadFile,
     chunk_index: Annotated[int, Form(alias="chunkIndex")],
     total_chunks: Annotated[int, Form(alias="totalChunks")],
+    background_tasks: BackgroundTasks,
     content_range: Annotated[str | None, Header()] = None,
 ) -> Response:
     """Upload a file."""
@@ -101,26 +128,15 @@ async def upload_file(
     filename = f"{BUCKET_NAME}/{UPLOADS_PATH}/{file.filename}"
     parts_path = f"{filename}.part"
 
-    def part_filename_fn(ichunk):
-        return f"{parts_path}/.part{ichunk:05x}"
-
     if not fs.exists(metadata_path := f"{parts_path}/metadata.json"):
         with fs.open(metadata_path, "w") as f:
             json.dump({"total_chunks": total_chunks, "total_size": file_size}, f)
 
-    with fs.open(part_filename_fn(chunk_index), "wb") as f:
+    with fs.open(part_filename(parts_path, chunk_index), "wb") as f:
         f.write(await file.read())
 
     if chunk_index == total_chunks - 1:
-        with fs.open(filename, "wb") as combined_file:
-            for ichunk in range(total_chunks):
-                with fs.open(part_filename_fn(ichunk), "rb") as part_file:
-                    combined_file.write(part_file.read())
-
-        fs.rm(parts_path, recursive=True)
-
-        fs.mv(filename, f"{BUCKET_NAME}/{COMPLETED_PATH}/{file.filename}")
-
+        background_tasks.add_task(complete_upload, file.filename, filename, parts_path, total_chunks)
         return Response(status_code=200, content="File uploaded successfully")
 
     return Response(
@@ -128,9 +144,3 @@ async def upload_file(
         status_code=206,
         headers={"Range": f"bytes={start}-{end}"},
     )
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
