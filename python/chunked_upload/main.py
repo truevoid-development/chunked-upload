@@ -49,6 +49,7 @@ async def list_objects() -> ObjectList:
                         total_chunks=metadata["total_chunks"],
                         n_bytes=metadata["total_size"],
                         completed=False,
+                        finalizing=metadata["finalizing"],
                     )
                 )
 
@@ -89,10 +90,18 @@ def part_filename(parts_path: str, ichunk: int):
 def complete_upload(filename: str, parts_path: str, total_chunks: int) -> None:
     """Complete an upload."""
 
-    print(f"Finalizing upload of {filename}")
+    print(f"Finalizing upload of `{filename}`")
 
     fs = fsspec.filesystem(protocol="s3")
     fs.invalidate_cache()
+
+    with fs.open(metadata_path := f"{parts_path}/metadata.json", "r") as f:
+        metadata = json.load(f)
+
+    metadata["finalizing"] = True
+
+    with fs.open(metadata_path, "w") as f:
+        json.dump(metadata, f)
 
     dest_path = f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}"
 
@@ -106,8 +115,8 @@ def complete_upload(filename: str, parts_path: str, total_chunks: int) -> None:
     fs.rm(parts_path, recursive=True)
 
     print(
-        f"Completed upload to {dest_path}: "
-        f"{hashlib.sha256(fs.open(dest_path, "rb").read()).digest().hex()}"
+        f"Completed upload to `{dest_path}`: "
+        f"`{hashlib.sha256(fs.open(dest_path, "rb").read()).digest().hex()}`"
     )
 
 
@@ -136,7 +145,9 @@ async def upload_file(
 
     if not fs.exists(metadata_path := f"{parts_path}/metadata.json"):
         with fs.open(metadata_path, "w") as f:
-            json.dump({"total_chunks": total_chunks, "total_size": file_size}, f)
+            json.dump(
+                {"total_chunks": total_chunks, "total_size": file_size, "finalizing": False}, f
+            )
 
     with fs.open(part_filename(parts_path, chunk_index), "wb") as f:
         f.write(await file.read())

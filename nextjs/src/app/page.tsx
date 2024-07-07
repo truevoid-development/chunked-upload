@@ -15,11 +15,12 @@ import prettyBytes from "pretty-bytes";
 
 const queryClient = new QueryClient();
 
-const CHUNK_SIZE = 2 * 1024 * 1024; // 5MB chunks
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 
 interface Object {
   path: string;
   completed: boolean;
+  finalizing: boolean;
   nBytes: number;
   uploadedChunks: number;
   totalChunks: number;
@@ -34,7 +35,7 @@ function Objects(): React.ReactNode {
     queryKey: ["objects"],
     queryFn: () => fetch("/api/objects").then((res) => res.json()),
     staleTime: 1000,
-    refetchInterval: 5000,
+    refetchInterval: 1000,
   });
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -130,9 +131,15 @@ function Objects(): React.ReactNode {
                 <td>
                   {item.completed
                     ? "Completed"
-                    : `${
-                      Math.ceil(100 * item.uploadedChunks / item.totalChunks)
-                    }%`}
+                    : (item.finalizing
+                      ? `Finalizing: ${
+                        Math.ceil(
+                          100 * (1.0 - item.uploadedChunks / item.totalChunks),
+                        )
+                      }%`
+                      : `Uploading: ${
+                        Math.ceil(100 * item.uploadedChunks / item.totalChunks)
+                      }%`)}
                 </td>
                 <td>{actions(item.path.slice(1), item.completed)}</td>
               </tr>

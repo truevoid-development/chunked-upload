@@ -18,6 +18,7 @@ class Object(ApplicationModel):
     path: str
     n_bytes: int
     completed: bool = True
+    finalizing: bool = False
     uploaded_chunks: int | None = None
     total_chunks: int | None = None
 
