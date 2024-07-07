@@ -125,7 +125,7 @@ function Objects(): React.ReactNode {
         <tbody>
           {data === undefined ? <></> : data.items.map((item) => {
             return (
-              <tr>
+              <tr key={item.path}>
                 <td>{item.path.slice(1)}</td>
                 <td>{prettyBytes(item.nBytes)}</td>
                 <td>
