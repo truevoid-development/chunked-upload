@@ -19,6 +19,7 @@ async def list_objects() -> ObjectList:
     """Return a list of objects in storage."""
 
     fs = fsspec.filesystem(protocol="s3")
+    fs.invalidate_cache()
 
     items: List[Object] = []
 
@@ -27,7 +28,12 @@ async def list_objects() -> ObjectList:
 
     if fs.isdir(completed_path):
         for file in fs.ls(completed_path):
-            items.append(Object(path=str(file).replace(completed_path, ""), n_bytes=fs.size(file)))
+            items.append(
+                Object(
+                    path=str(file).replace(completed_path, ""),
+                    n_bytes=fs.size(file),
+                )
+            )
 
     if fs.isdir(uploads_path):
         for file in fs.ls(uploads_path):
@@ -58,9 +64,19 @@ async def list_objects() -> ObjectList:
 
     print(f"Found {len(items)} objects.")
 
+    return ObjectList(items=items)
+
+
+@app.delete("/objects/{filename}")
+async def delete_object(filename: str) -> None:
+    """Delete an object."""
+
+    fs = fsspec.filesystem(protocol="s3")
     fs.invalidate_cache()
 
-    return ObjectList(items=items)
+    fs.rm(f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}")
+
+    print(f"Deleted {filename}")
 
 
 @app.post("/objects")
@@ -73,6 +89,7 @@ async def upload_file(
     """Upload a file."""
 
     fs = fsspec.filesystem(protocol="s3")
+    fs.invalidate_cache()
 
     print(f"Received: {file.filename}, {chunk_index}, {total_chunks}, {content_range}")
 

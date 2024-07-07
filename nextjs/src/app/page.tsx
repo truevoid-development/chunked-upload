@@ -74,8 +74,24 @@ function Objects(): React.ReactNode {
     }
   }, []);
 
-  const actions = (completed: boolean): React.ReactNode => {
-    return <FontAwesomeIcon icon={completed ? faTrash : faCancel} />;
+  const actions = (filename: string, completed: boolean): React.ReactNode => {
+    return (
+      <>
+        {completed
+          ? (
+            <FontAwesomeIcon
+              icon={faTrash}
+              className="cursor-pointer text-red-500 hover:text-red-300"
+              onClick={() => {
+                axios.delete(`/api/objects/${filename}`).then(() => {
+                  refetch();
+                });
+              }}
+            />
+          )
+          : <FontAwesomeIcon icon={faCancel} className="cursor-pointer" />}
+      </>
+    );
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
@@ -117,7 +133,7 @@ function Objects(): React.ReactNode {
                       Math.ceil(100 * item.uploadedChunks / item.totalChunks)
                     }%`}
                 </td>
-                <td>{actions(item.completed)}</td>
+                <td>{actions(item.path.slice(1), item.completed)}</td>
               </tr>
             );
           })}
