@@ -1,3 +1,4 @@
+import hashlib
 import json
 from typing import Annotated, List, LiteralString
 
@@ -85,7 +86,7 @@ def part_filename(parts_path: str, ichunk: int):
     return f"{parts_path}/.part{ichunk:05x}"
 
 
-def complete_upload(filename: str, full_path: str, parts_path: str, total_chunks: int) -> None:
+def complete_upload(filename: str, parts_path: str, total_chunks: int) -> None:
     """Complete an upload."""
 
     print(f"Finalizing upload of {filename}")
@@ -93,16 +94,21 @@ def complete_upload(filename: str, full_path: str, parts_path: str, total_chunks
     fs = fsspec.filesystem(protocol="s3")
     fs.invalidate_cache()
 
-    with fs.open(full_path, "wb") as combined_file:
+    dest_path = f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}"
+
+    with fs.open(dest_path, "wb") as combined_file:
         for ichunk in range(total_chunks):
-            with fs.open(part_filename(parts_path, ichunk), "rb") as part_file:
+            with fs.open(part_path := part_filename(parts_path, ichunk), "rb") as part_file:
                 combined_file.write(part_file.read())
+
+            fs.rm(part_path)
 
     fs.rm(parts_path, recursive=True)
 
-    fs.mv(full_path, dest_path := f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}")
-
-    print(f"Completed upload to {dest_path}")
+    print(
+        f"Completed upload to {dest_path}: "
+        f"{hashlib.sha256(fs.open(dest_path, "rb").read()).digest().hex()}"
+    )
 
 
 @app.post("/objects")
@@ -136,7 +142,7 @@ async def upload_file(
         f.write(await file.read())
 
     if chunk_index == total_chunks - 1:
-        background_tasks.add_task(complete_upload, file.filename, filename, parts_path, total_chunks)
+        background_tasks.add_task(complete_upload, file.filename, parts_path, total_chunks)
         return Response(status_code=200, content="File uploaded successfully")
 
     return Response(
