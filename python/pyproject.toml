@@ -18,6 +18,7 @@ fsspec = "^2024.6.1"
 hdfs = "^2.7.3"
 s3fs = "^2024.6.1"
 gunicorn = "^22.0.0"
+pyarrow = "^16.1.0"
 
 [tool.poetry.group.dev.dependencies]
 docformatter = "^1.7.5"

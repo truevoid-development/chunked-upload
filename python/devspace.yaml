@@ -44,6 +44,60 @@ deployments:
           ports:
             - containerPort: 8000
               port: 80
+  datanode:
+    helm:
+      values:
+        containers:
+          - image: docker.io/apache/hadoop:3
+            name: datanode
+            command: [/opt/starter.sh, hdfs, datanode]
+            env:
+              - name: ENSURE_NAMENODE_DIR
+                value: /tmp/hadoop-hadoop/dfs/name
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_dfs.permissions
+                value: "false"
+              - name: CORE-SITE.XML_dfs.namenode.rpc-address
+                value: namenode:8020
+              - name: CORE-SITE.XML_dfs.replication
+                value: "1"
+        service:
+          name: datanode
+          clusterIP: None
+          ports:
+            - containerPort: 9864
+              port: 9864
+  namenode:
+    helm:
+      values:
+        containers:
+          - image: docker.io/apache/hadoop:3
+            name: namenode
+            command: [/opt/starter.sh, hdfs, namenode]
+            env:
+              - name: ENSURE_NAMENODE_DIR
+                value: /tmp/hadoop-hadoop/dfs/name
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_dfs.permissions
+                value: "false"
+              - name: CORE-SITE.XML_dfs.namenode.rpc-address
+                value: 0.0.0.0:8020
+              - name: CORE-SITE.XML_dfs.replication
+                value: "1"
+        service:
+          name: namenode
+          clusterIP: None
+          ports:
+            - containerPort: 9870
+              port: 9870
+            - containerPort: 8020
+              port: 8020
 dev:
   backend:
     container: backend
@@ -54,5 +108,5 @@ dev:
     ports:
       - port: "8000"
     terminal:
-      command: gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+      command: gunicorn chunked_upload.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
       disableScreen: true
