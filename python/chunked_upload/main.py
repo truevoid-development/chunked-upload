@@ -11,6 +11,7 @@ from .models import Object, ObjectList
 BUCKET_NAME: LiteralString = "storage"
 COMPLETED_PATH: LiteralString = "completed"
 UPLOADS_PATH: LiteralString = "uploads"
+PROTOCOL: LiteralString = "s3"
 
 app = FastAPI()
 
@@ -19,7 +20,7 @@ app = FastAPI()
 async def list_objects() -> ObjectList:
     """Return a list of objects in storage."""
 
-    fs = fsspec.filesystem(protocol="s3")
+    fs = fsspec.filesystem(protocol=PROTOCOL)
     fs.invalidate_cache()
 
     items: List[Object] = []
@@ -73,7 +74,7 @@ async def list_objects() -> ObjectList:
 async def delete_object(filename: str) -> None:
     """Delete an object."""
 
-    fs = fsspec.filesystem(protocol="s3")
+    fs = fsspec.filesystem(protocol=PROTOCOL)
     fs.invalidate_cache()
 
     fs.rm(f"{BUCKET_NAME}/{COMPLETED_PATH}/{filename}")
@@ -92,7 +93,7 @@ def complete_upload(filename: str, parts_path: str, total_chunks: int) -> None:
 
     print(f"Finalizing upload of `{filename}`")
 
-    fs = fsspec.filesystem(protocol="s3")
+    fs = fsspec.filesystem(protocol=PROTOCOL)
     fs.invalidate_cache()
 
     with fs.open(metadata_path := f"{parts_path}/metadata.json", "r") as f:
@@ -130,7 +131,7 @@ async def upload_file(
 ) -> Response:
     """Upload a file."""
 
-    fs = fsspec.filesystem(protocol="s3")
+    fs = fsspec.filesystem(protocol=PROTOCOL)
     fs.invalidate_cache()
 
     print(f"Received: {file.filename}, {chunk_index}, {total_chunks}, {content_range}")
